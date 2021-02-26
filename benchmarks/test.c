@@ -15,7 +15,7 @@ void tempfn2() {
 	puts("start fn 2\n");
 	int i, j = 0;
 	for (i = 0; i < 100000000; i++) {
-		j++;
+		j++; // timer should interrupt at some point here
 	}
 	puts("end fn 2\n");
 	return;
@@ -26,7 +26,7 @@ void tempfn() {
 	int i, j = 0;
 	puts("start fn 1\n");
 	for (i = 0; i < 100000000; i++) {
-		j++;
+		j++; // timer should interrupt at some point here
 	}
 	puts("end fn 1\n");
 	rpthread_create(&t2, NULL, tempfn2, NULL);
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
 	rpthread_create(&t2, NULL, tempfn2, NULL);
 	// rpthread_yield();
-	sleep(5);
+	sleep(3);
 	puts("exiting...");
 
 	return 0;

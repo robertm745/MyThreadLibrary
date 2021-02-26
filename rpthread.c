@@ -64,11 +64,9 @@ static void sched_rr() {
 
 }
 
-/*
 void timerfn() {
 	swapcontext(&currthread->ctx, schedctx);
 }
-*/
 
 /* scheduler */
 static void schedule() {
@@ -152,7 +150,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
 		// set timer function as pthread_yield, for now
 		sa = malloc(sizeof(struct sigaction));
-		sa->sa_handler = (void(*)(int)) &rpthread_yield;
+		sa->sa_handler = (void(*)(int)) &timerfn;
 		sigaction (SIGPROF, sa, NULL);
 		timer = malloc(sizeof(struct itimerval));
 		timer->it_interval.tv_usec = 0;
