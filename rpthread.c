@@ -42,7 +42,6 @@ static void sched_rr() {
 	// runqueue is never null in current approach
 	while (1) {
 		if (currthread->status == FINISHED) {
-			puts("finished a thread\n");
 			pushThread(&finishedqueue, currthread);
 		} else {
 			pushThread(&runqueue, currthread);
@@ -52,19 +51,26 @@ static void sched_rr() {
 			puts("currthread NULL");
 			break;
 		}
-		if ((currthread)->status == READY) {
-			// setitimer(ITIMER_PROF, timer, NULL); // if I comment this out, it then works as expected
-			swapcontext(schedctx, (&currthread->ctx));
+		if (currthread->status == READY) {
+			currthread->status = SCHEDULED;
+			setitimer(ITIMER_PROF, timer, NULL); // if I comment this out, it then works as expected
+			swapcontext(schedctx, &currthread->ctx);
 			if (currthread->status == SCHEDULED) {
 				puts("thread set sched -> ready");
 				currthread->status = READY;
+			} else {
+				puts("thread finished");
 			}
 		} 
 	}
 
 }
 
-void timerfn() {
+void timerfn(int val) {
+	// puts("timer went off");
+	// printf("context id is %u\n", currthread->id);
+	// setcontext(schedctx);
+	// *(unsigned long int*)(&val + 47) = &rpthread_yield + 1;
 	swapcontext(&currthread->ctx, schedctx);
 }
 
@@ -106,11 +112,14 @@ static void sched_mlfq() {
 // enqueue a tcb
 void pushThread(tcb** queue, tcb* thr) {
 	tcb* ptr = *queue;
+	char* s = (queue == &runqueue) ? "runqueue" : "finishedqueue";
 	if (!ptr) {
 		*queue = thr;
-		puts("pushed first"); // debug
+		printf("Pushed first tcb to %s\n", s);
+		// puts("pushed first"); // debug
 	} else {
-		puts("pushed another"); // debug
+		printf("Pushed another tcb to %s\n", s);
+		// puts("pushed another"); // debug
 		while (ptr->next) {
 			ptr = ptr->next;
 		}
@@ -145,10 +154,10 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 		schedctx->uc_stack.ss_sp = malloc(SIGSTKSZ);
 		schedctx->uc_stack.ss_size = SIGSTKSZ;
 		schedctx->uc_stack.ss_flags = 0;
-		schedctx->uc_link = schedctx;
+		schedctx->uc_link = NULL;
 		makecontext(schedctx, (void (*)(void)) &schedule, 0);
 
-		// set timer function as pthread_yield, for now
+		// set timer function 
 		sa = malloc(sizeof(struct sigaction));
 		sa->sa_handler = (void(*)(int)) &timerfn;
 		sigaction (SIGPROF, sa, NULL);
@@ -170,8 +179,8 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 	// create and set tcb for function that was passed to rpthread_create() and then push it to runqueue
 	printf("rpthread call num %d\n", ++callnum); // debug
 	tcb* newTcb = (tcb*) malloc(sizeof(tcb));
-	newTcb->id = (rpthread_t) thread;
-	getcontext((&newTcb->ctx));
+	newTcb->id = *(rpthread_t*) thread;
+	getcontext(&newTcb->ctx);
 	newTcb->ctx.uc_stack.ss_sp = malloc(SIGSTKSZ);
 	newTcb->ctx.uc_stack.ss_size = SIGSTKSZ;
 	newTcb->ctx.uc_stack.ss_flags = 0;
@@ -200,7 +209,7 @@ int rpthread_yield() {
 	// YOUR CODE HERE 
 
 	// puts("timer called"); // debug
-	swapcontext((&currthread->ctx), schedctx);
+	swapcontext(&currthread->ctx, schedctx);
 	return 0;
 };
 
@@ -212,6 +221,16 @@ void rpthread_exit(void *value_ptr) {
 
 };
 
+tcb* findtcb(rpthread_t thr) {
+	tcb* ptr = runqueue;
+	while (ptr) {
+		if (ptr->id == thr) {
+			return ptr;
+		}
+		ptr = ptr->next;
+	}
+	return NULL;
+}
 
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
@@ -220,6 +239,16 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 	// de-allocate any dynamic memory created by the joining thread
 
 	// YOUR CODE HERE
+	tcb* target = findtcb(thread);
+	if (target == NULL) {
+		puts("join target NULL");
+		return 0;
+	} else {
+		puts("join target found");
+	}
+	while (target->status != FINISHED) {
+		rpthread_yield();
+	}
 	return 0;
 };
 
