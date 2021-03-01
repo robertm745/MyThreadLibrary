@@ -11,50 +11,31 @@
  * This will not be graded.
  */
 
-void tempfn2() {
-	puts("start fn 2\n");
-	int i, j = 0;
-	for (i = 0; i < 10000000; i++) {
-		j++; // timer should interrupt at some point here
-	}
-	puts("end fn 2\n");
-	rpthread_exit(NULL);
+void times4(void* arg) {
+	int i = (*(int*) arg) * 4;
+	rpthread_exit(&i);
 }
 
-void tempfn() {
-	rpthread_t t2;
-	int i, j = 0;
-	puts("start fn 1\n");
-	for (i = 0; i < 10000000; i++) {
-		j++; // timer should interrupt at some point here
-	}
-	puts("end fn 1\n");
-	rpthread_create(&t2, NULL, tempfn2, NULL);
-	rpthread_join(t2, NULL);
-	rpthread_yield();
-	rpthread_exit(NULL);
+void plus51(void* arg) {
+	int i = 50 + *(int*) arg;
+	rpthread_t t1;
+	rpthread_create(&t1, NULL, times4, &i);
+	int *ret;
+	rpthread_join(t1, &ret);
+	*ret += 1;
+	rpthread_exit(ret);
 }
 
 int main(int argc, char **argv) {
 
-	/* Implement HERE */
-	rpthread_t t, t2;
-	rpthread_create(&t, NULL, tempfn, NULL);
+	int* i = malloc(sizeof(int));
+	*i = 1;
+	rpthread_t t1;
+	rpthread_create(&t1, NULL, plus51, i);
+	rpthread_join(t1, &i);
+	printf("Got back %d\n", *i);
 
-	puts("another string!\n");
-
-	rpthread_create(&t2, NULL, tempfn2, NULL);
-	rpthread_join(t, NULL);
-	rpthread_join(t2, NULL);
-	rpthread_yield();
-	/*
-	sleep(3);
-	int i, j = 0;
-	for (i = 0; i < 100000000; i++) {
-		j++; // timer should interrupt at some point here
-	}
-	*/
 	puts("exiting...");
 
-	return 0;
+	rpthread_exit(NULL);
 }

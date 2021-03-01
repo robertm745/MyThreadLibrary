@@ -9,9 +9,11 @@
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
 
-int callnum;
+int tid;
+
 tcb* runqueue;
 tcb* finishedqueue;
+
 ucontext_t* schedctx;
 struct sigaction* sa;
 struct itimerval* timer;
@@ -25,17 +27,6 @@ static void schedule();
 static void sched_rr();
 static void sched_mlfq();
 
-// starts a thread and collects return value, if any
-/*
-static void* threadStart(void*(*function)(void*), void* arg) {
-	currthread->retval = function(arg);
-	puts("fn done");
-	currthread->status = FINISHED;
-	swapcontext(&currthread->ctx, schedctx);
-	return 0;
-}
-*/
-
 /* Round Robin (RR) scheduling algorithm */
 static void sched_rr() {
 	// Your own implementation of RR
@@ -45,11 +36,9 @@ static void sched_rr() {
 		pushThread(&runqueue, currthread);
 		currthread = popThread(&runqueue);
 		if (currthread->status == READY) {
-			puts("\nstarting next thread\n");
 			currthread->status = SCHEDULED;
 			setitimer(ITIMER_PROF, timer, NULL); 
 			setcontext(&currthread->ctx);
-			// swapcontext(schedctx, &currthread->ctx);
 		} 
 	}
 
@@ -76,7 +65,7 @@ static void sched_mlfq() {
 	// Your own implementation of MLFQ
 	// (feel free to modify arguments and return types)
 
-	puts("ERROR");
+	puts("ERROR"); // for now
 }
 
 // enqueue a tcb
@@ -85,9 +74,7 @@ void pushThread(tcb** queue, tcb* thr) {
 	char* s = (queue == &runqueue) ? "runqueue" : "finishedqueue";
 	if (!ptr) {
 		*queue = thr;
-		printf("Pushed first tcb to %s\n", s);
 	} else {
-		// printf("Pushed another tcb to %s\n", s);
 		while (ptr->next) {
 			ptr = ptr->next;
 		}
@@ -114,7 +101,6 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
 	// check if scheduler context (schedctx) is initialized
 	if (schedctx == NULL) {
-		puts("schedctx init"); //debug 
 		schedctx = malloc(sizeof(ucontext_t));
 		getcontext(schedctx);
 		schedctx->uc_stack.ss_sp = malloc(SIGSTKSZ);
@@ -125,7 +111,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
 		// set timer function 
 		sa = malloc(sizeof(struct sigaction));
-		sa->sa_handler = (void(*)(int)) &rpthread_yield; // &timerfn; 
+		sa->sa_handler = (void(*)(int)) &rpthread_yield; 
 		sigaction (SIGPROF, sa, NULL);
 		timer = malloc(sizeof(struct itimerval));
 		timer->it_interval.tv_usec = 0;
@@ -136,31 +122,27 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 		// create tcb for current context (context for function that called rpthread_create) and push to runqueue
 		currthread = (tcb*) malloc(sizeof(tcb));
 		getcontext(&currthread->ctx);
-		currthread->id = 0;
+		currthread->id = tid++;
 		currthread->status = SCHEDULED;
 		currthread->next = NULL;
 
 	}
 
 	// create and set tcb for function that was passed to rpthread_create() and then push it to runqueue
-	printf("rpthread call num %d\n", ++callnum); // debug
 	tcb* newTcb = (tcb*) malloc(sizeof(tcb));
-	newTcb->id = *(rpthread_t*) thread;
+	newTcb->id = tid;
+	*thread = tid++;
 	getcontext(&newTcb->ctx);
-	printf("newTcb->id = %u\n", newTcb->id);
 	newTcb->ctx.uc_stack.ss_sp = malloc(SIGSTKSZ);
 	newTcb->ctx.uc_stack.ss_size = SIGSTKSZ;
 	newTcb->ctx.uc_stack.ss_flags = 0;
 	newTcb->ctx.uc_link = schedctx;
 	newTcb->next = NULL;
 	newTcb->status = READY;
-	// makecontext(&newTcb->ctx, (void (*)(void)) &threadStart, 2, function, arg);
-
 	makecontext(&newTcb->ctx, (void(*)(void)) function, 1, arg); // used for setting context to the function-parameter directly
-
 	pushThread(&runqueue, newTcb);
-	rpthread_yield();
 
+	rpthread_yield();
 	return 0;
 };
 
@@ -196,7 +178,6 @@ tcb* findtcb(rpthread_t thr) {
 		}
 		ptr = ptr->next;
 	}
-	puts("\nEnd search\n");
 	return NULL;
 }
 
@@ -207,13 +188,14 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 
 	tcb* target = findtcb(thread);
 	if (target == NULL) {
-		puts("join target NULL");
+		puts("join target NULL"); // shouldn't happen
 		return 0;
-	} else {
-		puts("join target found");
-	}
+	} 
 	while (target->status != FINISHED) {
 		rpthread_yield();
+	}
+	if (value_ptr) {
+		*value_ptr = target->retval;
 	}
 	return 0;
 };
@@ -260,10 +242,3 @@ int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
-/*
-   int main(int argc, char* argv[]) {
-   rpthread_t t1;
-   rpthread_create(&t1, NULL, (void*) testFunc, NULL);
-   return 0;
-   }
- */
