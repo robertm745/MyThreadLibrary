@@ -22,8 +22,11 @@ tcb* popThread(tcb** queue);
 void pushThread(tcb** queue, tcb* thr);
 
 static void schedule();
+static void sched_rr();
+static void sched_mlfq();
 
 // starts a thread and collects return value, if any
+/*
 static void* threadStart(void*(*function)(void*), void* arg) {
 	currthread->retval = function(arg);
 	puts("fn done");
@@ -31,47 +34,25 @@ static void* threadStart(void*(*function)(void*), void* arg) {
 	swapcontext(&currthread->ctx, schedctx);
 	return 0;
 }
+*/
 
 /* Round Robin (RR) scheduling algorithm */
 static void sched_rr() {
 	// Your own implementation of RR
 	// (feel free to modify arguments and return types)
 
-	// YOUR CODE HERE
-
-	// runqueue is never null in current approach
 	while (1) {
-		if (currthread->status == FINISHED) {
-			pushThread(&finishedqueue, currthread);
-		} else {
-			pushThread(&runqueue, currthread);
-		}
+		pushThread(&runqueue, currthread);
 		currthread = popThread(&runqueue);
-		if (currthread == NULL) { // shouldn't happen (?)
-			puts("currthread NULL");
-			break;
-		}
 		if (currthread->status == READY) {
+			puts("\nstarting next thread\n");
 			currthread->status = SCHEDULED;
-			setitimer(ITIMER_PROF, timer, NULL); // if I comment this out, it then works as expected
-			swapcontext(schedctx, &currthread->ctx);
-			if (currthread->status == SCHEDULED) {
-				puts("thread set sched -> ready");
-				currthread->status = READY;
-			} else {
-				puts("thread finished");
-			}
+			setitimer(ITIMER_PROF, timer, NULL); 
+			setcontext(&currthread->ctx);
+			// swapcontext(schedctx, &currthread->ctx);
 		} 
 	}
 
-}
-
-void timerfn(int val) {
-	// puts("timer went off");
-	// printf("context id is %u\n", currthread->id);
-	// setcontext(schedctx);
-	// *(unsigned long int*)(&val + 47) = &rpthread_yield + 1;
-	swapcontext(&currthread->ctx, schedctx);
 }
 
 /* scheduler */
@@ -80,25 +61,14 @@ static void schedule() {
 	// should be contexted switched from thread context to this 
 	// schedule function
 
-	// Invoke different actual scheduling algorithms
-	// according to policy (RR or MLFQ)
-
-	// if (sched == RR)
-	sched_rr();
-	// else if (sched == MLFQ)
-	//	sched_mlfq();
-
-	// YOUR CODE HERE
-
 	// schedule policy
 #ifndef MLFQ
 	// Choose RR
-	// CODE 1
+	sched_rr();
 #else 
 	// Choose MLFQ
-	// CODE 2
+	sched_mlfq();
 #endif
-
 }
 
 /* Preemptive MLFQ scheduling algorithm */
@@ -106,7 +76,7 @@ static void sched_mlfq() {
 	// Your own implementation of MLFQ
 	// (feel free to modify arguments and return types)
 
-	// YOUR CODE HERE
+	puts("ERROR");
 }
 
 // enqueue a tcb
@@ -116,10 +86,8 @@ void pushThread(tcb** queue, tcb* thr) {
 	if (!ptr) {
 		*queue = thr;
 		printf("Pushed first tcb to %s\n", s);
-		// puts("pushed first"); // debug
 	} else {
-		printf("Pushed another tcb to %s\n", s);
-		// puts("pushed another"); // debug
+		// printf("Pushed another tcb to %s\n", s);
 		while (ptr->next) {
 			ptr = ptr->next;
 		}
@@ -143,8 +111,6 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 	// create and initialize the context of this thread
 	// allocate space of stack for this thread to run
 	// after everything is all set, push this thread int
-	// YOUR CODE HERE
-
 
 	// check if scheduler context (schedctx) is initialized
 	if (schedctx == NULL) {
@@ -159,7 +125,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 
 		// set timer function 
 		sa = malloc(sizeof(struct sigaction));
-		sa->sa_handler = (void(*)(int)) &timerfn;
+		sa->sa_handler = (void(*)(int)) &rpthread_yield; // &timerfn; 
 		sigaction (SIGPROF, sa, NULL);
 		timer = malloc(sizeof(struct itimerval));
 		timer->it_interval.tv_usec = 0;
@@ -171,7 +137,7 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 		currthread = (tcb*) malloc(sizeof(tcb));
 		getcontext(&currthread->ctx);
 		currthread->id = 0;
-		currthread->status = READY;
+		currthread->status = SCHEDULED;
 		currthread->next = NULL;
 
 	}
@@ -181,34 +147,30 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 	tcb* newTcb = (tcb*) malloc(sizeof(tcb));
 	newTcb->id = *(rpthread_t*) thread;
 	getcontext(&newTcb->ctx);
+	printf("newTcb->id = %u\n", newTcb->id);
 	newTcb->ctx.uc_stack.ss_sp = malloc(SIGSTKSZ);
 	newTcb->ctx.uc_stack.ss_size = SIGSTKSZ;
 	newTcb->ctx.uc_stack.ss_flags = 0;
 	newTcb->ctx.uc_link = schedctx;
 	newTcb->next = NULL;
 	newTcb->status = READY;
-	makecontext(&newTcb->ctx, (void (*)(void)) &threadStart, 2, function, arg);
+	// makecontext(&newTcb->ctx, (void (*)(void)) &threadStart, 2, function, arg);
 
-	// makecontext(&newTcb->ctx, (void(*)(void)) function, 1, arg); // used for setting context to the function-parameter directly
+	makecontext(&newTcb->ctx, (void(*)(void)) function, 1, arg); // used for setting context to the function-parameter directly
 
-	puts("pushed new thread");
 	pushThread(&runqueue, newTcb);
+	rpthread_yield();
 
-	// swap contexts to the scheduler
-	swapcontext(&currthread->ctx, schedctx);
 	return 0;
 };
 
 /* give CPU possession to other user-level threads voluntarily */
 int rpthread_yield() {
-
 	// change thread state from Running to Ready
 	// save context of this thread to its thread control block
 	// wwitch from thread context to scheduler context
 
-	// YOUR CODE HERE 
-
-	// puts("timer called"); // debug
+	currthread->status = READY;
 	swapcontext(&currthread->ctx, schedctx);
 	return 0;
 };
@@ -217,28 +179,32 @@ int rpthread_yield() {
 void rpthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
 
-	// YOUR CODE HERE
-
+	if (value_ptr) {
+		currthread->retval = value_ptr;
+	}
+	currthread->status = FINISHED;
+	// then free other contents of tcb...?
 };
 
 tcb* findtcb(rpthread_t thr) {
 	tcb* ptr = runqueue;
+	printf("\nSearching for %u\n", thr);
 	while (ptr) {
+		printf("ptr->id = %u\n", ptr->id);
 		if (ptr->id == thr) {
 			return ptr;
 		}
 		ptr = ptr->next;
 	}
+	puts("\nEnd search\n");
 	return NULL;
 }
 
 /* Wait for thread termination */
 int rpthread_join(rpthread_t thread, void **value_ptr) {
-
 	// wait for a specific thread to terminate
 	// de-allocate any dynamic memory created by the joining thread
 
-	// YOUR CODE HERE
 	tcb* target = findtcb(thread);
 	if (target == NULL) {
 		puts("join target NULL");

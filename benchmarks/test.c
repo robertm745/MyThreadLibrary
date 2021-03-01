@@ -18,7 +18,7 @@ void tempfn2() {
 		j++; // timer should interrupt at some point here
 	}
 	puts("end fn 2\n");
-	return;
+	rpthread_exit(NULL);
 }
 
 void tempfn() {
@@ -29,9 +29,10 @@ void tempfn() {
 		j++; // timer should interrupt at some point here
 	}
 	puts("end fn 1\n");
-	// rpthread_create(&t2, NULL, tempfn2, NULL);
-	// rpthread_yield();
-	return;
+	rpthread_create(&t2, NULL, tempfn2, NULL);
+	rpthread_join(t2, NULL);
+	rpthread_yield();
+	rpthread_exit(NULL);
 }
 
 int main(int argc, char **argv) {
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
 	rpthread_create(&t2, NULL, tempfn2, NULL);
 	rpthread_join(t, NULL);
 	rpthread_join(t2, NULL);
-	// rpthread_yield();
+	rpthread_yield();
 	/*
 	sleep(3);
 	int i, j = 0;
