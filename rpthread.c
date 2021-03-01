@@ -71,7 +71,6 @@ static void sched_mlfq() {
 // enqueue a tcb
 void pushThread(tcb** queue, tcb* thr) {
 	tcb* ptr = *queue;
-	char* s = (queue == &runqueue) ? "runqueue" : "finishedqueue";
 	if (!ptr) {
 		*queue = thr;
 	} else {
@@ -170,9 +169,7 @@ void rpthread_exit(void *value_ptr) {
 
 tcb* findtcb(rpthread_t thr) {
 	tcb* ptr = runqueue;
-	printf("\nSearching for %u\n", thr);
 	while (ptr) {
-		printf("ptr->id = %u\n", ptr->id);
 		if (ptr->id == thr) {
 			return ptr;
 		}
