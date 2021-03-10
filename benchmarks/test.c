@@ -11,70 +11,53 @@
  * This will not be graded.
  */
 
-void times4(void* arg) {
-	int i = (*(int*) arg), j;
-	pthread_yield();
-	i *= 4;
-	pthread_yield();
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	rpthread_exit(&i);
-}
+rpthread_mutex_t mutex;
 
-void plus51(void* arg) {
-	int i = 50 + *(int*) arg, j;
-	rpthread_t t1;
-	for (j = 0; j < 100000000; j++) {
+long j;
+
+void printnums() {
+	long i;
+	for (i = 0; i < 1000000000; i++) {
+		rpthread_mutex_lock(&mutex);
+		/*
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			j += k - (k - 1);
+		}
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			j -= k - (k - 1);
+		}
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			j += k - (k - 1);
+		}
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			j -= k - (k - 1);
+		}
+		*/
 		j++;
-		j--;
+		rpthread_mutex_unlock(&mutex);
 	}
-	rpthread_create(&t1, NULL, times4, &i);
-	int *ret;
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	rpthread_join(t1, &ret);
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	*ret += 1;
-	rpthread_exit(ret);
 }
 
 int main(int argc, char **argv) {
 
-	int* i = malloc(sizeof(int)), j;
-	*i = 1;
-	rpthread_t t1;
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	rpthread_create(&t1, NULL, plus51, i);
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	for (j = 0; j < 100000000; j++) {
-		j++;
-		j--;
-	}
-	rpthread_join(t1, &i);
-	printf("Got back %d\n", *i);
+	rpthread_t t1, t2;
 
-	puts("exiting...");
+	rpthread_mutex_init(&mutex, NULL);
+
+	rpthread_create(&t1, NULL, printnums, NULL);
+
+	rpthread_create(&t2, NULL, printnums, NULL);
+	
+	rpthread_join(t1, NULL);
+
+	rpthread_join(t2, NULL);
+
+
+	printf("Final j = %ld\n", j);
 
 	return 0;
 }

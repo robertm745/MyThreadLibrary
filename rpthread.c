@@ -14,6 +14,8 @@ int tid;
 tcb* runqueue;
 tcb* finishedqueue;
 
+ucontext_t* exitctx;
+
 ucontext_t* schedctx;
 struct sigaction* sa;
 struct itimerval* timer;
@@ -32,16 +34,17 @@ static void sched_rr() {
 	// Your own implementation of RR
 	// (feel free to modify arguments and return types)
 
-	while (1) {
-		pushThread(&runqueue, currthread);
-		currthread = popThread(&runqueue);
-		if (currthread->status == READY) {
-			currthread->status = SCHEDULED;
-			setitimer(ITIMER_PROF, timer, NULL); 
-			setcontext(&currthread->ctx);
-		} 
-	}
-
+	if (currthread->status == SCHEDULED)
+		currthread->status = FINISHED;
+	pushThread(&runqueue, currthread);
+	currthread = popThread(&runqueue);
+	if (currthread->status == READY) {
+		currthread->status = SCHEDULED;
+		// printf("Scheduling %u\n", currthread->id);
+		setitimer(ITIMER_PROF, timer, NULL); 
+		setcontext(&currthread->ctx);
+	} else
+		setcontext(schedctx);
 }
 
 /* scheduler */
@@ -91,11 +94,17 @@ tcb* popThread(tcb** queue) {
 	return ptr;
 }
 
+void exitfn() {
+	printf("Entered exit fn, currthread->id is %u\n", currthread->id);
+	// free() as needed
+	// setcontext(schedctx);
+}
+
 /* create a new thread */
 int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function)(void*), void * arg) {
 	// create Thread Control Block
 	// create and initialize the context of this thread
-	// allocate space of stack for this thread to run
+	// allocae space of stack for this thread to run
 	// after everything is all set, push this thread int
 
 	// check if scheduler context (schedctx) is initialized
@@ -122,8 +131,17 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 		currthread = (tcb*) malloc(sizeof(tcb));
 		getcontext(&currthread->ctx);
 		currthread->id = tid++;
-		currthread->status = SCHEDULED;
+		// currthread->status = SCHEDULED;
 		currthread->next = NULL;
+
+		// atexit((void*) exitfn);
+		exitctx = (ucontext_t*) malloc(sizeof(ucontext_t));
+		getcontext(exitctx);
+		exitctx->uc_stack.ss_sp = malloc(SIGSTKSZ);
+		exitctx->uc_stack.ss_size = SIGSTKSZ;
+		exitctx->uc_stack.ss_flags = 0;
+		exitctx->uc_link = schedctx;
+		makecontext(exitctx, (void*) rpthread_exit, 1, NULL);
 
 	}
 
@@ -164,6 +182,8 @@ void rpthread_exit(void *value_ptr) {
 		currthread->retval = value_ptr;
 	}
 	currthread->status = FINISHED;
+	puts("Exiting current thread...");
+
 	// then free other contents of tcb...?
 };
 
@@ -189,11 +209,13 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 		return 0;
 	} 
 	while (target->status != FINISHED) {
+		// printf("In %u, %u not finished yet\n", currthread->id, thread);
 		rpthread_yield();
 	}
 	if (value_ptr) {
 		*value_ptr = target->retval;
 	}
+	printf("%u finished, returning from join...\n", target->id);
 	return 0;
 };
 
@@ -203,6 +225,9 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex,
 	//initialize data structures for this mutex
 
 	// YOUR CODE HERE
+	// *mutex = (rpthread_mutex_t) malloc(sizeof(rpthread_mutex_t));
+	mutex->init = 1;
+	mutex->lock = 0;
 	return 0;
 };
 
@@ -214,6 +239,15 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 	// context switch to the scheduler thread
 
 	// YOUR CODE HERE
+
+	while (__sync_lock_test_and_set(&mutex->lock, 1)) {
+		while (mutex->lock) {
+			rpthread_yield();
+		}
+	}
+	// mutex->owner = currthread->id;
+
+
 	return 0;
 };
 
@@ -224,6 +258,8 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 	// so that they could compete for mutex later.
 
 	// YOUR CODE HERE
+	__sync_lock_release(&mutex->lock);
+	// mutex->owner = -1;
 	return 0;
 };
 
@@ -231,7 +267,7 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 	// Deallocate dynamic memory created in rpthread_mutex_init
-
+	// free(mutex); ?
 	return 0;
 };
 

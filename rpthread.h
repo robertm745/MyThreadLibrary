@@ -58,6 +58,9 @@ typedef struct rpthread_mutex_t {
 	/* add something here */
 
 	// YOUR CODE HERE
+	int init;
+	int owner;
+	short lock;
 } rpthread_mutex_t;
 
 /* define your data structures here: */
