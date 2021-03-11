@@ -52,7 +52,8 @@ typedef struct threadControlBlock {
 	void* retval;
 	struct threadControlBlock* next;
 	int level;
-	int blockedOn;
+	int blockingMutex;
+	int blockingThread;
 } tcb; 
 
 /* mutex struct definition */
