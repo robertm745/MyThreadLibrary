@@ -17,13 +17,13 @@ long j;
 
 void printnums() {
 	long i;
-	for (i = 0; i < 1000000000; i++) {
+	for (i = 0; i < 10; i++) {
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			// j += k - (k - 1);
+		}
 		rpthread_mutex_lock(&mutex);
-		/*
-		for (int k = 0; k < 100000000; k++) {
-			k += 1 - 1;
-			j += k - (k - 1);
-		}
+
 		for (int k = 0; k < 100000000; k++) {
 			k += 1 - 1;
 			j -= k - (k - 1);
@@ -32,13 +32,16 @@ void printnums() {
 			k += 1 - 1;
 			j += k - (k - 1);
 		}
-		for (int k = 0; k < 100000000; k++) {
-			k += 1 - 1;
-			j -= k - (k - 1);
-		}
-		*/
+		
 		j++;
+		rpthread_yield();
 		rpthread_mutex_unlock(&mutex);
+		
+		for (int k = 0; k < 100000000; k++) {
+			k += 1 - 1;
+			// j += k - (k - 1);
+		}
+
 	}
 }
 

@@ -51,6 +51,8 @@ typedef struct threadControlBlock {
 	ucontext_t ctx;
 	void* retval;
 	struct threadControlBlock* next;
+	int level;
+	int blockedOn;
 } tcb; 
 
 /* mutex struct definition */
@@ -59,6 +61,7 @@ typedef struct rpthread_mutex_t {
 
 	// YOUR CODE HERE
 	int init;
+	int id;
 	int owner;
 	short lock;
 } rpthread_mutex_t;
@@ -67,6 +70,12 @@ typedef struct rpthread_mutex_t {
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
+/*
+typedef struct MLFQ_node {
+	tcb* thread;
+	struct MLFQ_node* nextLvl;
+} node;
+*/
 
 /* Function Declarations: */
 
