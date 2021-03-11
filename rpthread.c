@@ -40,7 +40,6 @@ static void sched_rr() {
 	currthread = popThread(&runqueue);
 	if (currthread->status == READY) {
 		currthread->status = SCHEDULED;
-		// printf("Scheduling %u\n", currthread->id);
 		setitimer(ITIMER_PROF, timer, NULL); 
 		setcontext(&currthread->ctx);
 	} else
@@ -94,10 +93,29 @@ tcb* popThread(tcb** queue) {
 	return ptr;
 }
 
+void freectx(ucontext_t* c) {
+        if (c != NULL) {
+		free(c->uc_stack.ss_sp);
+		free(c);
+	}
+}
+
 void exitfn() {
-	printf("Entered exit fn, currthread->id is %u\n", currthread->id);
-	// free() as needed
-	// setcontext(schedctx);
+	// free contexts
+        freectx(schedctx);
+        freectx(exitctx);
+	// free timer
+        free(sa);
+        free(timer);
+	// free queue(s)
+        tcb* ptr = runqueue, *tmp;
+        while (ptr) {
+            tmp = ptr->next;
+            free(ptr->ctx.uc_stack.ss_sp);
+	    free(ptr);
+	    ptr = tmp;
+	}
+
 }
 
 /* create a new thread */
@@ -131,10 +149,9 @@ int rpthread_create(rpthread_t * thread, pthread_attr_t * attr, void *(*function
 		currthread = (tcb*) malloc(sizeof(tcb));
 		getcontext(&currthread->ctx);
 		currthread->id = tid++;
-		// currthread->status = SCHEDULED;
 		currthread->next = NULL;
 
-		// atexit((void*) exitfn);
+		atexit((void*) exitfn);
 		exitctx = (ucontext_t*) malloc(sizeof(ucontext_t));
 		getcontext(exitctx);
 		exitctx->uc_stack.ss_sp = malloc(SIGSTKSZ);
@@ -182,9 +199,6 @@ void rpthread_exit(void *value_ptr) {
 		currthread->retval = value_ptr;
 	}
 	currthread->status = FINISHED;
-	puts("Exiting current thread...");
-
-	// then free other contents of tcb...?
 };
 
 tcb* findtcb(rpthread_t thr) {
@@ -195,6 +209,7 @@ tcb* findtcb(rpthread_t thr) {
 		}
 		ptr = ptr->next;
 	}
+	puts("Error: couldn't find taarget");
 	return NULL;
 }
 
@@ -204,18 +219,12 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 	// de-allocate any dynamic memory created by the joining thread
 
 	tcb* target = findtcb(thread);
-	if (target == NULL) {
-		puts("join target NULL"); // shouldn't happen
-		return 0;
-	} 
 	while (target->status != FINISHED) {
-		// printf("In %u, %u not finished yet\n", currthread->id, thread);
 		rpthread_yield();
 	}
 	if (value_ptr) {
 		*value_ptr = target->retval;
 	}
-	printf("%u finished, returning from join...\n", target->id);
 	return 0;
 };
 
@@ -225,7 +234,6 @@ int rpthread_mutex_init(rpthread_mutex_t *mutex,
 	//initialize data structures for this mutex
 
 	// YOUR CODE HERE
-	// *mutex = (rpthread_mutex_t) malloc(sizeof(rpthread_mutex_t));
 	mutex->init = 1;
 	mutex->lock = 0;
 	return 0;
@@ -247,7 +255,6 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 	}
 	// mutex->owner = currthread->id;
 
-
 	return 0;
 };
 
@@ -259,7 +266,6 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 
 	// YOUR CODE HERE
 	__sync_lock_release(&mutex->lock);
-	// mutex->owner = -1;
 	return 0;
 };
 
@@ -267,7 +273,7 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 /* destroy the mutex */
 int rpthread_mutex_destroy(rpthread_mutex_t *mutex) {
 	// Deallocate dynamic memory created in rpthread_mutex_init
-	// free(mutex); ?
+	mutex->init = 0;
 	return 0;
 };
 
