@@ -38,10 +38,10 @@ static void sched_rr() {
 	// If this thread is set as scheduled, it was not interrupted => it is finished
 	if (currthread->status == SCHEDULED)
 		currthread->status = FINISHED;
-	// push current and get next thread
+	// Push current and get next thread 
 	pushThread(&rrqueue, currthread);
 	currthread = popThread(&rrqueue);
-	// set status, start the timer, and set context to next thread
+	// Set status, start the timer, and set context to next thread
 	currthread->status = SCHEDULED;
 	setitimer(ITIMER_PROF, timer, NULL); 
 	setcontext(&currthread->ctx);
@@ -55,25 +55,19 @@ static void sched_mlfq() {
 	int level;
 	// If this thread is set as scheduled, it was not interrupted => it is finished
 	if (currthread->status == SCHEDULED) {
-		// printf("Thread %d finished\n", currthread->id);
-		// find any threads that were waiting on this thread to finish
+		// printf("Thread %d finished\n", currthread->id); // DEBUG
+		// Find any threads that were waiting on this thread to finish
 		unblockThreadsFromJoin(currthread);
 		currthread->status = FINISHED;
 	}
-	// printf("Pushing thread %d with status %d to level %d\n", currthread->id, currthread->status, currthread->level);
-	// push current, find highest level with a thread that's ready to run, then pop from that level
+	// printf("Pushing thread %d with status %d to level %d\n", currthread->id, currthread->status, currthread->level); // DEBUG
+	// Push current, find highest level with a thread that's ready to run, then pop from that level
 	pushThread(mlfq + currthread->level, currthread);
 	level = findNextReadyLevel();
 	currthread = popThread(mlfq + level);
-	/*
-	if (!currthread) {
-		puts("MLFQ - NULL returned from popThread()");
-		return;
-	}
-	*/
-	// set status, start the timer, and set context to next thread
+	// Set status, start the timer, and set context to next thread
 	currthread->status = SCHEDULED;
-	// printf("Scheduling %d\n", currthread->id);
+	// printf("Scheduling %d\n", currthread->id); // DEBUG
 	setitimer(ITIMER_PROF, timer, NULL); 
 	setcontext(&currthread->ctx);
 }
@@ -104,7 +98,7 @@ int findNextReadyLevel() {
 		while (ptr) {
 			// check if ptr thread is ready or if ptr thread is current thread
 			if (ptr->status == READY || ptr->status == SCHEDULED) {
-				// printf("Next ready is thread %d on level %d\n", ptr->id, level);
+				// printf("Next ready is thread %d on level %d\n", ptr->id, level); // DEBUG
 				return level;
 			}
 			ptr = ptr->next;
@@ -118,11 +112,11 @@ int findNextReadyLevel() {
 // Push a tcb to the back of queue passed to the function
 void pushThread(tcb** queue, tcb* thr) {
 	tcb* ptr = *queue;
-	// if NULL, then set first tcb of queue to this thread
+	// If NULL, then set first tcb of queue to this thread
 	if (!ptr) {
 		*queue = thr;
 	} else {
-		// go the back of the queue, and set to NULL
+		// Go the back of the queue, and set to NULL
 		while (ptr->next) {
 			ptr = ptr->next;
 		}
@@ -184,12 +178,12 @@ void exitfn() {
 
 // util function (only used for MLFQ) to serve as intermediary between timer interrupt and call to rpthread_yield(); used to demote priority
 void timerfn() {
-//	printf("Interrupted %d ", currthread->id);
+//	printf("Interrupted %d ", currthread->id); // DEBUG
 	if (currthread->level < 3) {
 		currthread->level++;
-//		printf("demoted priority to %d", currthread->level);
+//		printf("demoted priority to %d", currthread->level); // DEBUG
 	}
-//	putchar('\n');
+//	putchar('\n'); // DEBUG
 	rpthread_yield();
 }
 
@@ -323,12 +317,12 @@ int rpthread_join(rpthread_t thread, void **value_ptr) {
 	tcb* target;
 	// Attempt to find matching thread; if not found, then return after notifying print statement
 	if ((target = findtcb(thread)) == NULL) {
-		puts("Error: target not found");
+		puts("Error: thread target not found");
 		return 1;
 	}
 	// wait while thread is not finished
 	while (target->status != FINISHED) {
-		// printf("%d still waiting on %d\n", currthread->id, target->id);
+		// printf("%d still waiting on %d\n", currthread->id, target->id); // DEBUG
 		// if RR, then simply yield - BLOCKED not needed as all thread's will get a chance to run
 		#ifndef MLFQ
 		rpthread_yield();
@@ -367,17 +361,17 @@ int rpthread_mutex_lock(rpthread_mutex_t *mutex) {
 
 	// Attempt to acquire the mutex with atomic operation
 	while (__sync_lock_test_and_set(&mutex->lock, 1)) {
-		// /printf("Failed to acquire lock: %d blocked on mutex %d\n", currthread->id, mutex->id);
+		// /printf("Failed to acquire lock: %d blocked on mutex %d\n", currthread->id, mutex->id); // DEBUG
 		// if lock was not acquired, set status and blocking mutex then go to scheduler
 		while (mutex->lock) {
-			// printf("%d blocked on mutex %d - mutex status %d\n", currthread->id, mutex->id, mutex->lock);
+			// printf("%d blocked on mutex %d - mutex status %d\n", currthread->id, mutex->id, mutex->lock); // DEBUG
 			currthread->blockingMutex = mutex->id;
 			currthread->status = BLOCKED;
 			swapcontext(&currthread->ctx, schedctx);
-			// rpthread_yield();
+			// rpthread_yield(); // DEBUG
 		}
 	}
-	// printf("Thread %d acquired mutex %d\n", currthread->id, mutex->id);
+	// printf("Thread %d acquired mutex %d\n", currthread->id, mutex->id); // DEBUG
 
 	return 0;
 };
@@ -390,9 +384,9 @@ void unblockThreadsOnMutex(rpthread_mutex_t* mutex) {
 	while (ptr) {
 		// if BLOCKED on matching mutex, set status to READY
 		if (ptr->status == BLOCKED && ptr->blockingMutex == mutex->id) {
-			// printf("Set %d back to READY from mutex %d -- current thread %d\n", ptr->id, mutex->id, currthread->id);
+			// printf("Set %d back to READY from mutex %d -- current thread %d\n", ptr->id, mutex->id, currthread->id); // DEBUG
 			ptr->status = READY;
-			// ptr->blockingMutex = -1;
+			// ptr->blockingMutex = -1; // DEBUG
 		}
 		ptr = ptr->next;
 	}
@@ -403,9 +397,9 @@ void unblockThreadsOnMutex(rpthread_mutex_t* mutex) {
 		while (ptr) {
 			// if BLOCKED on matching mutex, set status to READY
 			if (ptr->status == BLOCKED && ptr->blockingMutex == mutex->id) {
-				// printf("Set %d back to READY from mutex %d -- current thread %d\n", ptr->id, mutex->id, currthread->id);
+				// printf("Set %d back to READY from mutex %d -- current thread %d\n", ptr->id, mutex->id, currthread->id); // DEBUG
 				ptr->status = READY;
-				// ptr->blockingMutex = -1;
+				// ptr->blockingMutex = -1; // DEBUG
 			}
 			ptr = ptr->next;
 		}
@@ -421,7 +415,7 @@ int rpthread_mutex_unlock(rpthread_mutex_t *mutex) {
 
 	// release lock
 	__sync_lock_release(&mutex->lock);
-	// printf("Thread %d released mutex %d\n", currthread->id, mutex->id);
+	// printf("Thread %d released mutex %d\n", currthread->id, mutex->id); // DEBUG
 	// Unblock any thraeds that were waiting on this lock
 	unblockThreadsOnMutex(mutex);
 	return 0;
@@ -442,8 +436,8 @@ void unblockThreadsFromJoin(tcb* thr) {
 	while (ptr) {
 		// check if BLOCKED on matching thread ID, if so then set status to READY
 		if (ptr->status == BLOCKED && ptr->blockingThread == thr->id) {
-			// printf("Set %d back to READY from join -- current thread %d\n", ptr->id, currthread->id);
-			// ptr->blockingThread = -1;
+			// printf("Set %d back to READY from join -- current thread %d\n", ptr->id, currthread->id); // DEBUG
+			// ptr->blockingThread = -1 // DEBUG;
 			ptr->status = READY;
 		}
 		ptr = ptr->next;
@@ -455,8 +449,8 @@ void unblockThreadsFromJoin(tcb* thr) {
 		while (ptr) {
 			// check if BLOCKED on matching thread ID, if so then set status to READY
 			if (ptr->status == BLOCKED && ptr->blockingThread == thr->id) {
-				// printf("Set %d back to READY from join -- current thread %d\n", ptr->id, currthread->id);
-				// ptr->blockingThread = -1;
+				// printf("Set %d back to READY from join -- current thread %d\n", ptr->id, currthread->id); // DEBUG
+				// ptr->blockingThread = -1; // DEBUG
 				ptr->status = READY;
 			}
 			ptr = ptr->next;

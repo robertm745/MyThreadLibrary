@@ -1,8 +1,8 @@
 // File:	rpthread_t.h
 
-// List all group member's name:
-// username of iLab:
-// iLab Server:
+// List all group member's name: Robert Mannifield, Allen Zhang
+// username of iLab: rmm288
+// iLab Server: ls.cs.rutgers.edu
 
 #ifndef RTHREAD_T_H
 #define RTHREAD_T_H
@@ -37,15 +37,6 @@
 typedef uint rpthread_t;
 
 typedef struct threadControlBlock {
-	/* add important states in a thread control block */
-	// thread Id
-	// thread status
-	// thread context
-	// thread stack
-	// thread priority
-	// And more ...
-
-	// YOUR CODE HERE
 	rpthread_t id;
 	int status;
 	ucontext_t ctx;
@@ -58,25 +49,11 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct rpthread_mutex_t {
-	/* add something here */
-
-	// YOUR CODE HERE
 	int init;
 	int id;
 	int owner;
 	short lock;
 } rpthread_mutex_t;
-
-/* define your data structures here: */
-// Feel free to add your own auxiliary data structures (linked list or queue etc...)
-
-// YOUR CODE HERE
-/*
-typedef struct MLFQ_node {
-	tcb* thread;
-	struct MLFQ_node* nextLvl;
-} node;
-*/
 
 /* Function Declarations: */
 
